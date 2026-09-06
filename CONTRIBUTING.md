@@ -14,6 +14,14 @@ Use the repository's issue templates when reporting:
 
 For larger changes, open of discuss an issue before starting implementation.
 
+## Rust Configuration
+
+```bash
+rustup show     # 1.98.1-x86_64-pc-windows-msvc
+rustc --version # rustc 1.98.1
+cargo --version # cargo 1.98.1
+```
+
 ## Issues
 
 A good issue should:
