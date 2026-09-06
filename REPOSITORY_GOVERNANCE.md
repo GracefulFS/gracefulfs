@@ -39,9 +39,19 @@ Local commits do not need to reference an issue. The issue reference is required
 
 ## Reviews
 
-The repository currently has a single maintainer, so required approvals are disabled.
+Pull requests targeting `main` require at least one approving review.
 
-Once an additional maintainer is available, pull requests should require at least one approval from another maintainer.
+The most recent reviewable push must be approved by someone other than the person who pushed it.
+
+Code Owner review is not currently required because the repository ownership model and `CODEOWNERS` file have not yet been established.
+
+See Issue #9.
+
+## Signed Commits
+
+All commits pushed to `main` must have a verified signature.
+
+Contributors should configure commit signing before opening a pull request targeting `main`.
 
 ## Status Checks
 
