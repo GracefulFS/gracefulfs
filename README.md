@@ -15,6 +15,7 @@ Please read the following documents before contributing:
 - [Contributing Guide](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
+- [Repository Governance](REPOSITORY_GOVERNANCE.md)
 
 ## MVP Workflow
 

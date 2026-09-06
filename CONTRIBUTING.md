@@ -64,7 +64,7 @@ Maintiners review changes for:
 
 Contributors should respond to review feedback and resolve outstanding discussions before merge.
 
-The exact branch protection and required-review rules are defined in the repository governance settings.
+See [Repository Governance](REPOSITORY_GOVERNANCE.md) for branch protection, review, and merge policies.
 
 ## Communication
 
