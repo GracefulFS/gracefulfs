@@ -95,9 +95,17 @@ Every pull request should:
 
 For documentation-only changes, state that no code tests were required.
 
+## Code Ownership
+
+GracefulFS uses a path-based ownership model to ensure changes to critical areas are reviewed by the appropriate maintainers.
+
+- **CODEOWNERS Mapping:** Path-specific review rules are defined in [.github/CODEOWNERS](.github/CODEOWNERS). Key paths—including `.github/`, workflows, source code, tests, and documentation—are mapped to specific maintainers or default reviewers.
+- **Required Reviews:** Pull Requests modifying protected paths will automatically request reviews from assigned Code Owners. These reviews must be approved before merging, as enforced by repository rulesets and branch protection policies.
+- **Maintaining Ownership:** As repository areas evolve or new modules are added, ownership rules must be updated accordingly. Any change to `.github/CODEOWNERS` or protected paths must be reviewed and approved by an existing maintainer to prevent leaving paths without an accountable reviewer.
+
 ## Review
 
-Maintiners review changes for:
+Maintainers review changes for:
 
 - Alignment with the related issue.
 - Correctness and clarity.
@@ -113,11 +121,11 @@ See [Repository Governance](REPOSITORY_GOVERNANCE.md) for branch protection, rev
 
 Please communicate respectfully and constructively.
 
-Keep technical criticism focused on the work, not on indivisuals. Do not use issues or pull requests for harassment, spam, or personal disputes.
+Keep technical criticism focused on the work, not on individuals. Do not use issues or pull requests for harassment, spam, or personal disputes.
 
 ## Related Policies
 
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
-- [Repository Ownership](https://github.com/dldyou/gracefulfs/issues/9)
+- [Repository Ownership](.github/CODEOWNERS)
 - [Branch and Ruleset Policy](https://github.com/dldyou/gracefulfs/issues/8)
