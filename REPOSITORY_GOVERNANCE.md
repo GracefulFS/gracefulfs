@@ -43,9 +43,7 @@ Pull requests targeting `main` require at least one approving review.
 
 The most recent reviewable push must be approved by someone other than the person who pushed it.
 
-Code Owner review is not currently required because the repository ownership model and `CODEOWNERS` file have not yet been established.
-
-See Issue #9.
+Pull requests modifying protected areas require approval from the designated code owners defined in `.github/CODEOWNERS` before merging.
 
 ## Signed Commits
 
@@ -61,9 +59,14 @@ The required checks should include formatting, linting, build, and test validati
 
 ## Code Owners
 
-Code owner review will be enabled after the repository ownership model and `CODEOWNERS` file are established.
+Repository ownership is managed via `.github/CODEOWNERS`.
 
-See Issue #9.
+The following ownership maintenance rules apply:
+
+- Changes to `.github/CODEOWNERS` must be reviewed and approved by a maintainer.
+- When new directories, modules, or key paths (such as `.github`, documentation, source, tests, and workflows) are added or restructured, ownership must be updated accordingly.
+- Ownership changes must never leave any protected path without an accountable reviewer.
+- A default reviewer rule (`*`) must always be maintained to ensure complete coverage.
 
 ## Exceptions
 
