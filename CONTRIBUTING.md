@@ -22,6 +22,23 @@ rustc --version # rustc 1.98.1
 cargo --version # cargo 1.98.1
 ```
 
+## Project Layout and Commands
+
+The repository uses a single root Cargo package. `src/main.rs` is the
+application entry point, and `tests/` is reserved for integration tests.
+The initial application exits without performing filesystem operations.
+
+Run the following commands from the repository root on Windows using the
+toolchain pinned in `rust-toolchain.toml`:
+
+```bash
+cargo metadata --no-deps
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+cargo build --target x86_64-pc-windows-msvc
+```
+
 ## Issues
 
 A good issue should:
