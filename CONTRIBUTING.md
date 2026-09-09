@@ -86,6 +86,17 @@ cargo test
 cargo build --target x86_64-pc-windows-msvc
 ```
 
+To run formatting checks, linting, building, and tests together in PowerShell:
+
+```powershell
+.\scripts\check.ps1
+```
+
+The script runs from the repository root, uses the pinned Rust toolchain and
+the single target in `rust-toolchain.toml`, and stops at the first failed check
+with a non-zero exit code. It does not apply formatting changes. Install the
+required toolchain and build tools before running it.
+
 ## Issues
 
 A good issue should:
