@@ -14,12 +14,59 @@ Use the repository's issue templates when reporting:
 
 For larger changes, open of discuss an issue before starting implementation.
 
-## Rust Configuration
+## Windows Development Prerequisites
+
+GracefulFS targets read-only analysis of Windows local storage.
+The MVP does not modify, delete, or move user files.
+
+### C++ Build Tools and Windows SDK
+
+Install Visual Studio 2022 or Build Tools for Visual Studio 2022.
+Select the **Desktop development with C++** workload and ensure the following components are installed:
+
+- MSVC v143 C++ x64/x86 build tools
+- Windows 11 SDK (for example, 10.0.26100.0)
+
+An existing Visual Studio installation with these components is sufficient.
+The Visual Studio IDE is optional.
+
+The maintainer's current environment includes MSVC 14.38.33130 and Windows SDK versions 10.0.26100.0.
+These are reference versions, not enforced minimum requirements.
+
+### Rust Toolchain
+
+Install Rust using Rustup and use the MSVC toolchain.
+Run commands from the repository root so Rustup uses `rust-toolchain.toml`, which specifies:
+
+- Rust: 1.98.1
+- Target: x86_64-pc-windows-msvc
+- Components: rustfmt, clippy
+
+### Verify the Setup
 
 ```bash
 rustup show     # 1.98.1-x86_64-pc-windows-msvc
 rustc --version # rustc 1.98.1
 cargo --version # cargo 1.98.1
+rustup target list --installed
+rustup component list --installed
+
+cargo metadata --no-deps
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo build --target x86_64-pc-windows-msvc
+cargo test
+```
+
+### Troubleshooting
+
+- **`cargo` is not recognized:** Restart the terminal after installing Rustup and check that `%USERPROFILE%\.cargo\bin` is on PATH.
+- **`link.exe` is missing or Windows SDK libraries cannot be found:** Open Visual Studio Installer and add the C++ build tools and Windows SDK components listed above.
+- **The target or Rust components are missing:** Run the following commands from the repository root:
+
+```bash
+rustup target add x86_64-pc-windows-msvc
+rustup component add rustfmt clippy
 ```
 
 ## Project Layout and Commands
