@@ -97,6 +97,28 @@ the single target in `rust-toolchain.toml`, and stops at the first failed check
 with a non-zero exit code. It does not apply formatting changes. Install the
 required toolchain and build tools before running it.
 
+## Continuous Integration
+
+The `CI` workflow runs on pull requests targeting `main`, `develop`, or
+`release-*`, and on pushes to those branches. One Windows x64 MSVC job runs
+Rust setup, formatting, and Clippy sequentially. A failed step prevents later
+checks from running. Rust setup uses `rust-toolchain.toml`.
+
+To reproduce the Rust checks locally, run:
+
+```bash
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+When the full PR diff or push comparison contains only Markdown (`.md`) files,
+the workflow reports a successful skip without setting up Rust or running its
+checks. Deleted files and both sides of renames are included. Mixed changes,
+empty comparisons, and uncertain change detection run the Rust checks.
+The workflow itself is not skipped through path filters.
+
+Build validation and automated tests will be added in issues #17 and #18.
+
 ## Issues
 
 A good issue should:
