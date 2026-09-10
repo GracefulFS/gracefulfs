@@ -301,6 +301,7 @@ Keep technical criticism focused on the work, not on individuals. Do not use iss
 
 ## Related Policies
 
+- [Release Process and Prerelease Approvals](RELEASING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
 - [Repository Ownership](.github/CODEOWNERS)
