@@ -17,7 +17,7 @@ try {
         ,@('fmt', '--check')
         ,@('clippy', '--all-targets', '--all-features', '--', '-D', 'warnings')
         ,@('build', '--locked', '--target', $buildTarget)
-        ,@('test')
+        ,@('test', '--locked')
     )
     foreach ($check in $checks) {
         Write-Host "Running: cargo $($check -join ' ')"
