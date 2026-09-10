@@ -54,7 +54,7 @@ rustup component list --installed
 cargo metadata --no-deps
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo build --target x86_64-pc-windows-msvc
+cargo build --locked --target x86_64-pc-windows-msvc
 cargo test
 ```
 
@@ -83,7 +83,7 @@ cargo metadata --no-deps
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test
-cargo build --target x86_64-pc-windows-msvc
+cargo build --locked --target x86_64-pc-windows-msvc
 ```
 
 To run formatting checks, linting, building, and tests together in PowerShell:
@@ -101,14 +101,18 @@ required toolchain and build tools before running it.
 
 The `CI` workflow runs on pull requests targeting `main`, `develop`, or
 `release-*`, and on pushes to those branches. One Windows x64 MSVC job runs
-Rust setup, formatting, and Clippy sequentially. A failed step prevents later
-checks from running. Rust setup uses `rust-toolchain.toml`.
+Rust setup, formatting, Clippy, and a debug build sequentially. A failed step
+prevents later checks from running. The Rust toolchain and build target come
+from `rust-toolchain.toml`. The runner provides MSVC build tools and the Windows
+SDK. Build failures fail the CI check, and `--locked` prevents Cargo from
+updating `Cargo.lock`.
 
 To reproduce the Rust checks locally, run:
 
 ```bash
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
+cargo build --locked --target x86_64-pc-windows-msvc
 ```
 
 When the full PR diff or push comparison contains only Markdown (`.md`) files,
@@ -117,7 +121,7 @@ checks. Deleted files and both sides of renames are included. Mixed changes,
 empty comparisons, and uncertain change detection run the Rust checks.
 The workflow itself is not skipped through path filters.
 
-Build validation and automated tests will be added in issues #17 and #18.
+Automated tests will be added in issue #18.
 
 ## Issues
 

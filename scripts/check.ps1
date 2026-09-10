@@ -16,7 +16,7 @@ try {
     $checks = @(
         ,@('fmt', '--check')
         ,@('clippy', '--all-targets', '--all-features', '--', '-D', 'warnings')
-        ,@('build', '--target', $buildTarget)
+        ,@('build', '--locked', '--target', $buildTarget)
         ,@('test')
     )
     foreach ($check in $checks) {
