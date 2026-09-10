@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop, 'release-*']
+  push:
+    branches: [main, develop, 'release-*']
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust checks
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect documentation-only changes
+        id: changes
+        run: |
+          $docsOnly = $false
+          try {
+            $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+            if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+              $head = $event.pull_request.head.sha
+              $base = git merge-base $event.pull_request.base.sha $head
+              if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the PR merge base.' }
+            } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+              $base = $event.before
+              $head = $event.after
+            } else {
+              throw 'Unsupported event.'
+            }
+            if ($base -notmatch '^[0-9a-f]{40}$' -or $base -match '^0+$' -or
+                $head -notmatch '^[0-9a-f]{40}$' -or $head -match '^0+$') {
+              throw 'No usable comparison range; running Rust checks.'
+            }
+
+            # Disable rename detection so both old and new paths are checked.
+            # NUL separators preserve spaces, Unicode, and newlines in paths.
+            $diff = git diff --name-only --no-renames -z $base $head --
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot list changed files.' }
+            $files = @(($diff -join "`n").Split([char]0, [System.StringSplitOptions]::RemoveEmptyEntries))
+            $docsOnly = $files.Count -gt 0 -and @($files | Where-Object { $_ -cnotlike '*.md' }).Count -eq 0
+          } catch {
+            Write-Host "Change detection uncertain: $_"
+          }
+          "docs_only=$($docsOnly.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          # A failed Git comparison falls back to running checks, not failing this step.
+          exit 0
+
+      - name: Report documentation-only skip
+        if: success() && steps.changes.outputs.docs_only == 'true'
+        run: Write-Host 'Only Markdown files changed. Skipping Rust setup, formatting, and linting.'
+
+      - name: Prepare pinned Rust toolchain
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        # Rustup installs the toolchain, components, and targets from rust-toolchain.toml.
+        run: rustup show
+
+      - name: Check formatting
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        run: cargo clippy --all-targets --all-features -- -D warnings
