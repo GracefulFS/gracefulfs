@@ -101,7 +101,7 @@ required toolchain and build tools before running it.
 
 The `CI` workflow runs on pull requests targeting `main`, `develop`, or
 `release-*`, and on pushes to those branches. One Windows x64 MSVC job runs
-Rust setup, formatting, Clippy, a debug build, and tests sequentially. A failed step
+Rust setup, formatting, Clippy, a debug build, tests, and a dependency audit sequentially. A failed step
 prevents later checks from running. The Rust toolchain and build target come
 from `rust-toolchain.toml`. The runner provides MSVC build tools and the Windows
 SDK. Build or test failures fail the CI check, and `--locked` prevents Cargo from
@@ -126,6 +126,69 @@ The current tests verify that test automation works; they do not demonstrate
 filesystem behavior or safety. Feature-specific tests belong to their
 implementation issues. Tests that access the filesystem must use isolated
 fixtures or temporary directories without modifying user files.
+
+### Dependency and Supply-Chain Checks
+
+After tests pass on a PR or push, CI installs the pinned cargo-audit version and
+checks `Cargo.lock` against the current RustSec advisory database. Markdown-only
+PRs and pushes skip the audit using the same policy as other Rust checks.
+Vulnerabilities and execution errors, including database fetch failures, fail
+the check. The audit does not fix dependencies or change the lockfile.
+
+The same workflow also runs an audit every Monday at 04:00 UTC on the default
+branch. Maintainers can select **Actions > CI > Run workflow** for a manual
+audit. Scheduled and manual runs prepare Rust and run the audit without
+formatting, building, or testing, regardless of changed files. These triggers
+become available after the workflow is present on the default branch.
+
+Run the following commands from the repository root to reproduce the audit:
+
+```powershell
+cargo install cargo-audit --version 0.22.2 --locked
+cargo audit --file Cargo.lock
+```
+
+The explicit lockfile path makes a missing lockfile an error instead of allowing
+automatic generation. Network access is required to install the tool and refresh
+advisories. `scripts/check.ps1` remains the local formatting/build/test check;
+run the audit command separately. CI uses only `contents: read` and no custom
+secrets. External Actions must remain pinned to full commit SHAs. Update the
+cargo-audit pin in CI and this guide together after reviewing its release notes.
+
+#### Advisory Handling
+
+For a vulnerability, review the advisory and dependency chain, then upgrade or
+replace the affected dependency and rerun all checks. Investigate execution
+errors rather than treating an incomplete audit as success.
+
+`.cargo/audit.toml` keeps unmaintained, unsound, and notice advisories visible as
+warnings. Yanked-package warnings also remain enabled. These informational
+warnings do not fail CI, but maintainers must review them and track necessary
+upgrades or replacements. Vulnerability advisories still fail CI.
+
+No advisories are currently ignored. An exception requires review in a PR:
+add only its specific advisory ID to `advisories.ignore` in `.cargo/audit.toml`,
+with an adjacent comment recording the justification and review date
+(`YYYY-MM-DD`). Reassess the exception by that date and remove it when resolved.
+Do not use blanket ignores or suppress audit failures.
+
+#### Dependabot Updates
+
+Enable **Dependabot alerts** and **Dependabot security updates** under the
+repository's **Settings > Code security**. These repository settings are
+separate from `.github/dependabot.yml` and require administrator access.
+
+`.github/dependabot.yml` schedules weekly Cargo and GitHub Actions version
+updates on Mondays, targeting the default branch. Security updates can open
+PRs when a patched version is available, independently of that weekly schedule.
+The configuration takes effect once merged into the default branch.
+
+Review each update's release notes, compatibility, lockfile changes, and any
+security advisory. For Action updates, verify the pinned SHA belongs to the
+intended upstream release and retain the full SHA. Run the existing CI checks
+and obtain the required reviews before merging. Dependabot PRs do not bypass
+branch protection, and automatic merging must remain disabled. License checks
+and SBOM generation are outside the current scope.
 
 ## Issues
 
