@@ -5,6 +5,9 @@ on:
     branches: [main, develop, 'release-*']
   push:
     branches: [main, develop, 'release-*']
+  schedule:
+    - cron: '0 4 * * 1' # Monday, 04:00 UTC
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +28,7 @@ jobs:
 
       - name: Detect documentation-only changes
         id: changes
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         run: |
           $docsOnly = $false
           try {
@@ -59,7 +63,7 @@ jobs:
 
       - name: Report documentation-only skip
         if: success() && steps.changes.outputs.docs_only == 'true'
-        run: Write-Host 'Only Markdown files changed. Skipping Rust setup, formatting, linting, building, and testing.'
+        run: Write-Host 'Only Markdown files changed. Skipping Rust setup, formatting, linting, building, testing, and auditing.'
 
       - name: Prepare pinned Rust toolchain
         if: success() && steps.changes.outputs.docs_only != 'true'
@@ -67,15 +71,15 @@ jobs:
         run: rustup show
 
       - name: Check formatting
-        if: success() && steps.changes.outputs.docs_only != 'true'
+        if: success() && steps.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
         run: cargo fmt --check
 
       - name: Run Clippy
-        if: success() && steps.changes.outputs.docs_only != 'true'
+        if: success() && steps.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build Windows executable
-        if: success() && steps.changes.outputs.docs_only != 'true'
+        if: success() && steps.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
         run: |
           # Match the single-target configuration used by scripts/check.ps1.
           $toolchain = Get-Content 'rust-toolchain.toml' -Raw
@@ -86,5 +90,14 @@ jobs:
           cargo build --locked --target $buildTarget
 
       - name: Run tests
-        if: success() && steps.changes.outputs.docs_only != 'true'
+        if: success() && steps.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
         run: cargo test --locked
+
+      - name: Install cargo-audit
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Audit dependencies
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        # An explicit path prevents automatic lockfile generation if it is missing.
+        run: cargo audit --file Cargo.lock
