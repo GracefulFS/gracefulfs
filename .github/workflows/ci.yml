@@ -59,7 +59,7 @@ jobs:
 
       - name: Report documentation-only skip
         if: success() && steps.changes.outputs.docs_only == 'true'
-        run: Write-Host 'Only Markdown files changed. Skipping Rust setup, formatting, linting, and building.'
+        run: Write-Host 'Only Markdown files changed. Skipping Rust setup, formatting, linting, building, and testing.'
 
       - name: Prepare pinned Rust toolchain
         if: success() && steps.changes.outputs.docs_only != 'true'
@@ -84,3 +84,7 @@ jobs:
           }
           $buildTarget = $Matches[1]
           cargo build --locked --target $buildTarget
+
+      - name: Run tests
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        run: cargo test --locked
