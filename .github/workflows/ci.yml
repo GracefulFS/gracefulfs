@@ -59,7 +59,7 @@ jobs:
 
       - name: Report documentation-only skip
         if: success() && steps.changes.outputs.docs_only == 'true'
-        run: Write-Host 'Only Markdown files changed. Skipping Rust setup, formatting, and linting.'
+        run: Write-Host 'Only Markdown files changed. Skipping Rust setup, formatting, linting, and building.'
 
       - name: Prepare pinned Rust toolchain
         if: success() && steps.changes.outputs.docs_only != 'true'
@@ -73,3 +73,14 @@ jobs:
       - name: Run Clippy
         if: success() && steps.changes.outputs.docs_only != 'true'
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build Windows executable
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        run: |
+          # Match the single-target configuration used by scripts/check.ps1.
+          $toolchain = Get-Content 'rust-toolchain.toml' -Raw
+          if ($toolchain -notmatch '(?m)^targets\s*=\s*\[\s*"([^"]+)"\s*\]') {
+            throw 'Expected one target in rust-toolchain.toml.'
+          }
+          $buildTarget = $Matches[1]
+          cargo build --locked --target $buildTarget
