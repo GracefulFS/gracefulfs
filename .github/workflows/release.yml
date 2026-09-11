@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*-rc.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build:
+    name: Validate and package
+    runs-on: windows-2022
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.version.outputs.commit }}
+      archive: ${{ steps.package.outputs.archive }}
+      sha256: ${{ steps.package.outputs.sha256 }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare pinned Rust toolchain
+        run: rustup show
+
+      - name: Validate release version and branch
+        id: version
+        run: |
+          if ($env:GITHUB_REF_TYPE -ne 'tag' -or
+              $env:GITHUB_REF_NAME -cnotmatch '\Av((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-rc\.(0|[1-9][0-9]*)\z') {
+            throw 'Expected a vX.Y.Z-rc.N tag without leading zeros.'
+          }
+          $releaseBranch = "release-$($Matches[1])"
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $metadata = cargo metadata --locked --no-deps --format-version 1
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read Cargo metadata.' }
+          $package = @((($metadata -join "`n") | ConvertFrom-Json).packages)
+          if ($package.Count -ne 1 -or $package[0].name -cne 'gracefulfs' -or $package[0].version -cne $version) {
+            throw 'The tag must match the gracefulfs package version in Cargo.toml.'
+          }
+          git merge-base --is-ancestor HEAD "refs/remotes/origin/$releaseBranch"
+          if ($LASTEXITCODE -ne 0) { throw "Tagged commit is not on $releaseBranch." }
+          $commit = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $commit -cne $env:GITHUB_SHA) { throw 'Unexpected checkout commit.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test --locked
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Audit dependencies
+        run: cargo audit --file Cargo.lock
+
+      - name: Build release executable
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc
+
+      - name: Package and verify
+        id: package
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_COMMIT: ${{ steps.version.outputs.commit }}
+        run: |
+          $archive = "gracefulfs-$env:RELEASE_VERSION-x86_64-pc-windows-msvc.zip"
+          $staging = Join-Path $env:RUNNER_TEMP 'release-package'
+          New-Item -ItemType Directory -Path $staging | Out-Null
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Copy-Item -LiteralPath 'target/x86_64-pc-windows-msvc/release/gracefulfs.exe' -Destination $staging
+          Copy-Item -LiteralPath LICENSE -Destination $staging
+          @"
+          # GracefulFS $env:RELEASE_VERSION
+
+          Commit: $env:RELEASE_COMMIT
+          Platform: Windows x64 (MSVC)
+
+          Extract the ZIP, open PowerShell in the extracted folder, and run:
+
+              .\gracefulfs.exe
+
+          This foundation release exits without output or filesystem operations.
+          Filesystem scanning and analysis are not implemented yet.
+          "@ | Set-Content -LiteralPath (Join-Path $staging 'README.md') -Encoding utf8
+          Compress-Archive -Path "$staging/*" -DestinationPath "dist/$archive"
+          $sha256 = (Get-FileHash -LiteralPath "dist/$archive" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha256  $archive" | Set-Content -LiteralPath dist/SHA256SUMS -Encoding ascii
+
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $PWD "dist/$archive"))
+          try {
+            $expected = @('gracefulfs.exe', 'LICENSE', 'README.md')
+            if ($zip.Entries.Count -ne 3 -or (Compare-Object $expected @($zip.Entries.FullName) -CaseSensitive)) {
+              throw 'Unexpected ZIP contents.'
+            }
+            foreach ($entry in $zip.Entries) {
+              if ($entry.Length -eq 0) { throw "Empty ZIP entry: $($entry.FullName)" }
+              $stream = $entry.Open()
+              try {
+                $entryHash = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($stream))
+                if ($entryHash -cne (Get-FileHash -LiteralPath (Join-Path $staging $entry.FullName)).Hash) {
+                  throw "ZIP content differs from source: $($entry.FullName)"
+                }
+              } finally { $stream.Dispose() }
+            }
+          } finally { $zip.Dispose() }
+          if ((Get-Content dist/SHA256SUMS -Raw).Trim() -cne "$sha256  $archive") {
+            throw 'Invalid checksum manifest.'
+          }
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+          "sha256=$sha256" >> $env:GITHUB_OUTPUT
+
+      - name: Upload validated artifacts
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: prerelease-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish prerelease
+    needs: build
+    runs-on: windows-2022
+    environment: prerelease
+    permissions:
+      contents: write
+    steps:
+      - name: Download validated artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          merge-multiple: true
+          path: dist
+
+      - name: Verify and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ needs.build.outputs.commit }}
+          ARCHIVE: ${{ needs.build.outputs.archive }}
+          EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          $files = @(Get-ChildItem -LiteralPath dist -File)
+          if ($files.Count -ne 2 -or (Compare-Object @($env:ARCHIVE, 'SHA256SUMS') @($files.Name) -CaseSensitive)) {
+            throw 'Unexpected release artifacts.'
+          }
+          $actualHash = (Get-FileHash -LiteralPath "dist/$env:ARCHIVE" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -cne $env:EXPECTED_SHA256 -or
+              (Get-Content dist/SHA256SUMS -Raw).Trim() -cne "$actualHash  $env:ARCHIVE") {
+            throw 'Artifact checksum verification failed.'
+          }
+          $tagCommit = gh api "repos/$env:GITHUB_REPOSITORY/commits/$env:RELEASE_TAG" --jq .sha
+          if ($LASTEXITCODE -ne 0 -or $tagCommit -cne $env:RELEASE_COMMIT) { throw 'Release tag changed or is unavailable.' }
+          $tags = gh api --paginate "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot check existing releases.' }
+          if ($env:RELEASE_TAG -cin @($tags)) { throw 'Release already exists; refusing to overwrite it.' }
+          "Windows x64 release candidate. Commit: $env:RELEASE_COMMIT. See the packaged README.md for usage." |
+            Set-Content -LiteralPath release-notes.md -Encoding utf8
+          gh release create $env:RELEASE_TAG "dist/$env:ARCHIVE" dist/SHA256SUMS --repo $env:GITHUB_REPOSITORY --verify-tag --prerelease --latest=false --title "GracefulFS $env:RELEASE_TAG" --notes-file release-notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Prerelease publishing failed; inspect the release before retrying.' }
