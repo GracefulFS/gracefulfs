@@ -56,6 +56,10 @@ The MVP never deletes, moves, or modifies user files. Any future cleanup action 
 
 The initial target is Windows local storage. Exact Rust toolchain, Windows targets, and compatibility requirements are defined during the Rust foundation work.
 
+## Architecture
+
+See the [architecture overview](ARCHITECTURE.md).
+
 ## Product Direction
 
 Future versions may add indexing, duplicate and stale-file analysis, cleanup recommendations, safe file actions, recovery, history, monitoring, and a Windows desktop application.

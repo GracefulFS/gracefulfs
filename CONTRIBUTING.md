@@ -73,7 +73,7 @@ rustup component add rustfmt clippy
 
 The repository uses a single root Cargo package. `src/main.rs` is the
 application entry point, and `tests/` is reserved for integration tests.
-The initial application exits without performing filesystem operations.
+Run the CLI with `cargo run -- scan <path>` (quote paths containing spaces).
 
 Run the following commands from the repository root on Windows using the
 toolchain pinned in `rust-toolchain.toml`:
@@ -96,6 +96,13 @@ The script runs from the repository root, uses the pinned Rust toolchain and
 the single target in `rust-toolchain.toml`, and stops at the first failed check
 with a non-zero exit code. It does not apply formatting changes. Install the
 required toolchain and build tools before running it.
+
+### Benchmarks
+
+Use Criterion for end-to-end scan benchmarks.
+Run `cargo bench --bench core` to execute benchmarks against fixed datasets.
+Record storage and cache conditions when comparing scan times.
+Use `cargo bench --bench core --no-run` to check compilation only.
 
 ## Issues
 
