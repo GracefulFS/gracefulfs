@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop, 'release-*']
+  push:
+    branches: [main, develop, 'release-*']
+  schedule:
+    - cron: '0 4 * * 1' # Monday, 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust checks
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect documentation-only changes
+        id: changes
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        run: |
+          $docsOnly = $false
+          try {
+            $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+            if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+              $head = $event.pull_request.head.sha
+              $base = git merge-base $event.pull_request.base.sha $head
+              if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the PR merge base.' }
+            } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+              $base = $event.before
+              $head = $event.after
+            } else {
+              throw 'Unsupported event.'
+            }
+            if ($base -notmatch '^[0-9a-f]{40}$' -or $base -match '^0+$' -or
+                $head -notmatch '^[0-9a-f]{40}$' -or $head -match '^0+$') {
+              throw 'No usable comparison range; running Rust checks.'
+            }
+
+            # Disable rename detection so both old and new paths are checked.
+            # NUL separators preserve spaces, Unicode, and newlines in paths.
+            $diff = git diff --name-only --no-renames -z $base $head --
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot list changed files.' }
+            $files = @(($diff -join "`n").Split([char]0, [System.StringSplitOptions]::RemoveEmptyEntries))
+            $docsOnly = $files.Count -gt 0 -and @($files | Where-Object { $_ -cnotlike '*.md' }).Count -eq 0
+          } catch {
+            Write-Host "Change detection uncertain: $_"
+          }
+          "docs_only=$($docsOnly.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          # A failed Git comparison falls back to running checks, not failing this step.
+          exit 0
+
+      - name: Report documentation-only skip
+        if: success() && steps.changes.outputs.docs_only == 'true'
+        run: Write-Host 'Only Markdown files changed. Skipping Rust setup, formatting, linting, building, testing, and auditing.'
+
+      - name: Prepare pinned Rust toolchain
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        # Rustup installs the toolchain, components, and targets from rust-toolchain.toml.
+        run: rustup show
+
+      - name: Check formatting
+        if: success() && steps.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        if: success() && steps.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build Windows executable
+        if: success() && steps.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
+        run: |
+          # Match the single-target configuration used by scripts/check.ps1.
+          $toolchain = Get-Content 'rust-toolchain.toml' -Raw
+          if ($toolchain -notmatch '(?m)^targets\s*=\s*\[\s*"([^"]+)"\s*\]') {
+            throw 'Expected one target in rust-toolchain.toml.'
+          }
+          $buildTarget = $Matches[1]
+          cargo build --locked --target $buildTarget
+
+      - name: Run tests
+        if: success() && steps.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
+        run: cargo test --locked
+
+      - name: Install cargo-audit
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Audit dependencies
+        if: success() && steps.changes.outputs.docs_only != 'true'
+        # An explicit path prevents automatic lockfile generation if it is missing.
+        run: cargo audit --file Cargo.lock

@@ -1,0 +1,4 @@
+[advisories]
+# Informational advisories stay visible without failing the audit.
+informational_warnings = ["unmaintained", "unsound", "notice"]
+ignore = []
